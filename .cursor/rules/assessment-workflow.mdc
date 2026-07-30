@@ -1,0 +1,81 @@
+---
+description: Assessment workflow — commit-sized chunks and conventional commits
+alwaysApply: true
+---
+
+# Assessment Workflow
+
+Work in **commit-sized chunks**. Each chunk should be one logical change that is complete, verifiable, and safe to land on its own.
+
+## Commit-sized chunks
+
+- One concern per commit: a bug fix, a test addition, a docs update — not a mixed bag.
+- Keep chunks small enough to describe in one conventional commit subject.
+- Verify before committing: run the checks relevant to the change (`npm run typecheck`, `npm test`, and manual CLI/MCP checks when behavior changes).
+- Do not batch unrelated fixes into a single commit to "save time."
+- Do not leave the tree broken between commits; each commit should leave the project in a working state.
+- Final commit completes `SUBMISSION.md`.
+
+### Good chunk boundaries
+
+| Chunk | Example scope |
+|-------|---------------|
+| Fix | MCP `repo_path` input mapping |
+| Fix | Validation failures recorded in report instead of crashing |
+| Test | Validation failure path |
+| Docs | Complete `SUBMISSION.md` |
+
+### Bad chunk boundaries
+
+- "Fix MCP, git defaults, validation, and add tests" in one commit
+- WIP commits with failing typecheck or tests
+- Formatting-only changes mixed with behavior changes
+
+## Conventional commits
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) for every commit:
+
+```
+<type>(<optional scope>): <short imperative summary>
+```
+
+### Types
+
+| Type | Use for |
+|------|---------|
+| `fix` | Bug fixes (MCP contract, validation crash, git default branch) |
+| `feat` | New behavior (JSON output, `--output` flag) |
+| `test` | Tests only |
+| `refactor` | Behavior-preserving restructuring |
+| `docs` | `SUBMISSION.md`, README, comments |
+| `chore` | Tooling, deps, config — no src behavior change |
+
+### Scopes (optional, match `src/` layout)
+
+`mcp`, `cli`, `core`, `git`, `validation`, `report`, `submission`
+
+### Examples
+
+```
+fix(mcp): align repo_path with reviewRepository input
+fix(validation): record failed commands in report output
+feat(cli): add --output flag for report path
+test(validation): cover non-zero exit without throwing
+docs(submission): complete assessment write-up
+```
+
+### Subject line rules
+
+- Imperative mood: "add", "fix", "record" — not "added" or "fixes"
+- No trailing period
+- ~72 characters or fewer
+- Body optional; use when the *why* is not obvious from the subject
+
+## Agent behavior
+
+When implementing assessment work:
+
+1. Propose or complete **one chunk** at a time.
+2. Suggest the conventional commit message before moving to the next chunk.
+3. Only create git commits when the user explicitly asks.
+4. After each chunk, state what was verified and what the next chunk should be.
