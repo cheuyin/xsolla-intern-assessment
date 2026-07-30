@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ChangedFile } from "./types.js";
 
 function git(repositoryPath: string, args: string[]): string {
@@ -29,6 +31,19 @@ function defaultBaseRef(repositoryPath: string): string {
   }
 
   throw new Error(`Could not determine default base ref for ${repositoryPath}`);
+}
+
+export function assertGitRepository(repositoryPath: string): void {
+  const resolvedPath = resolve(repositoryPath);
+  if (!existsSync(resolvedPath)) {
+    throw new Error(`Repository path does not exist: ${repositoryPath}`);
+  }
+
+  try {
+    git(resolvedPath, ["rev-parse", "--is-inside-work-tree"]);
+  } catch {
+    throw new Error(`Not a git repository: ${repositoryPath}`);
+  }
 }
 
 export function changedFiles(repositoryPath: string, baseRef?: string): ChangedFile[] {

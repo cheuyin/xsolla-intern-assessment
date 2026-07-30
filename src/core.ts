@@ -1,4 +1,4 @@
-import { changedFiles } from "./git.js";
+import { assertGitRepository, changedFiles } from "./git.js";
 import { formatReport } from "./report.js";
 import type { ReviewRequest, ValidationResult } from "./types.js";
 import { runValidations } from "./validation.js";
@@ -9,6 +9,7 @@ export type ReviewResult = {
 };
 
 export async function reviewRepository(request: ReviewRequest): Promise<ReviewResult> {
+  assertGitRepository(request.repositoryPath);
   const files = changedFiles(request.repositoryPath, request.baseRef);
   const validations = await runValidations(
     request.validationCommands ?? [],
