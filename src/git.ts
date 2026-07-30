@@ -10,9 +10,11 @@ function git(repositoryPath: string, args: string[]): string {
   }).trim();
 }
 
-function defaultBaseRef(repositoryPath: string): string {
+export type GitCommandRunner = (repositoryPath: string, args: string[]) => string;
+
+export function resolveDefaultBaseRef(repositoryPath: string, runGit: GitCommandRunner): string {
   try {
-    const ref = git(repositoryPath, ["symbolic-ref", "refs/remotes/origin/HEAD"]);
+    const ref = runGit(repositoryPath, ["symbolic-ref", "refs/remotes/origin/HEAD"]);
     const match = ref.match(/^refs\/remotes\/origin\/(.+)$/);
     if (match) {
       return match[1];
@@ -23,7 +25,7 @@ function defaultBaseRef(repositoryPath: string): string {
 
   for (const candidate of ["main", "master"]) {
     try {
-      git(repositoryPath, ["rev-parse", "--verify", candidate]);
+      runGit(repositoryPath, ["rev-parse", "--verify", candidate]);
       return candidate;
     } catch {
       // try next candidate
@@ -31,6 +33,10 @@ function defaultBaseRef(repositoryPath: string): string {
   }
 
   throw new Error(`Could not determine default base ref for ${repositoryPath}`);
+}
+
+export function defaultBaseRef(repositoryPath: string): string {
+  return resolveDefaultBaseRef(repositoryPath, git);
 }
 
 export function assertGitRepository(repositoryPath: string): void {
