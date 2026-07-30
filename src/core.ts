@@ -1,5 +1,5 @@
 import { changedFiles } from "./git.js";
-import { markdownReport } from "./report.js";
+import { formatReport } from "./report.js";
 import type { ReviewRequest, ValidationResult } from "./types.js";
 import { runValidations } from "./validation.js";
 
@@ -14,12 +14,13 @@ export async function reviewRepository(request: ReviewRequest): Promise<ReviewRe
     request.validationCommands ?? [],
     request.repositoryPath,
   );
+  const reportInput = {
+    repositoryPath: request.repositoryPath,
+    changedFiles: files,
+    validationResults: validations,
+  };
   return {
-    report: markdownReport({
-      repositoryPath: request.repositoryPath,
-      changedFiles: files,
-      validationResults: validations,
-    }),
+    report: formatReport(reportInput, request.format ?? "markdown"),
     validationResults: validations,
   };
 }

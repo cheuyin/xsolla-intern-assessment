@@ -1,6 +1,6 @@
 import type { ChangedFile, ValidationResult } from "./types.js";
 
-type ReportInput = {
+export type ReportInput = {
   repositoryPath: string;
   changedFiles: ChangedFile[];
   validationResults: ValidationResult[];
@@ -16,4 +16,20 @@ export function markdownReport(input: ReportInput): string {
     lines.push(`### ${result.command} (${result.status})`, "```", result.output, "```");
   }
   return lines.join("\n");
+}
+
+export function jsonReport(input: ReportInput): string {
+  return JSON.stringify(
+    {
+      repositoryPath: input.repositoryPath,
+      changedFiles: input.changedFiles,
+      validationResults: input.validationResults,
+    },
+    null,
+    2,
+  );
+}
+
+export function formatReport(input: ReportInput, format: "markdown" | "json" = "markdown"): string {
+  return format === "json" ? jsonReport(input) : markdownReport(input);
 }

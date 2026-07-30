@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { markdownReport } from "../src/report.js";
+import { jsonReport, markdownReport } from "../src/report.js";
 
 describe("markdownReport", () => {
   it("lists changed files and validation output", () => {
@@ -12,5 +12,21 @@ describe("markdownReport", () => {
     expect(report).toContain("src/index.ts (modified)");
     expect(report).toContain("npm test");
     expect(report).toContain("ok");
+  });
+});
+
+describe("jsonReport", () => {
+  it("returns structured review data as json", () => {
+    const report = jsonReport({
+      repositoryPath: "/work/sample",
+      changedFiles: [{ path: "src/index.ts", status: "modified" }],
+      validationResults: [{ command: "npm test", status: "passed", output: "ok" }],
+    });
+
+    expect(JSON.parse(report)).toEqual({
+      repositoryPath: "/work/sample",
+      changedFiles: [{ path: "src/index.ts", status: "modified" }],
+      validationResults: [{ command: "npm test", status: "passed", output: "ok" }],
+    });
   });
 });
