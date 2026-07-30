@@ -2,10 +2,9 @@ import { spawnSync } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const projectRoot = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+const projectRoot = process.cwd();
 
 function runInspector(args: string[]) {
   return spawnSync("npx", ["tsx", "src/cli.ts", ...args], {
