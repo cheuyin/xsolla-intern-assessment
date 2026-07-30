@@ -14,11 +14,11 @@ server.tool(
     baseRef: z.string().optional(),
     validationCommands: z.array(z.string()).optional(),
   },
-  async (input: any) => {
+  async ({ repo_path, baseRef, validationCommands }) => {
     const report = await reviewRepository({
-      repositoryPath: input.repoPath,
-      baseRef: input.baseRef,
-      validationCommands: input.validationCommands,
+      repositoryPath: repo_path,
+      baseRef,
+      validationCommands,
     });
     return { content: [{ type: "text", text: report }] };
   },
