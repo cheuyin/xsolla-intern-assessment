@@ -21,3 +21,7 @@ export async function runValidations(commands: string[], cwd: string): Promise<V
   }
   return results;
 }
+
+export function validationExitCode(results: ValidationResult[]): number {
+  return results.some((result) => result.status === "failed") ? 1 : 0;
+}

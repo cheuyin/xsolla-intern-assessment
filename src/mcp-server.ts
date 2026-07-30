@@ -15,7 +15,7 @@ server.tool(
     validationCommands: reviewRepositoryToolInput.shape.validationCommands,
   },
   async (input) => {
-    const report = await reviewRepository(toReviewRequest(reviewRepositoryToolInput.parse(input)));
+    const { report } = await reviewRepository(toReviewRequest(reviewRepositoryToolInput.parse(input)));
     return { content: [{ type: "text", text: report }] };
   },
 );

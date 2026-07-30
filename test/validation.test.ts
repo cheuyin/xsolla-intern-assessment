@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { markdownReport } from "../src/report.js";
-import { runValidation, runValidations } from "../src/validation.js";
+import { runValidation, runValidations, validationExitCode } from "../src/validation.js";
 
 describe("runValidation", () => {
   it("returns failed status for a non-zero exit instead of throwing", async () => {
@@ -26,6 +26,21 @@ describe("runValidations", () => {
     expect(results).toHaveLength(2);
     expect(results[0]?.status).toBe("failed");
     expect(results[1]?.status).toBe("passed");
+  });
+});
+
+describe("validationExitCode", () => {
+  it("returns 0 when all validations passed", () => {
+    expect(validationExitCode([{ command: "npm test", status: "passed", output: "ok" }])).toBe(0);
+  });
+
+  it("returns 1 when any validation failed", () => {
+    expect(
+      validationExitCode([
+        { command: "false", status: "failed", output: "boom" },
+        { command: "npm test", status: "passed", output: "ok" },
+      ]),
+    ).toBe(1);
   });
 });
 
