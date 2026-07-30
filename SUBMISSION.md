@@ -2,92 +2,122 @@
 
 ## What did you investigate first, and why?
 
-I started by reading the README and running the baseline commands (`npm install`, `typecheck`, `test`) to confirm the starter state. Then I traced the call path from both entry points — `cli.ts` and `mcp-server.ts` — into `core.ts`, and from there into `git.ts`, `validation.ts`, and `report.ts`.
+I read the README and ran the starter commands (`npm install`, `typecheck`, `test`). Then I followed the code from `cli.ts` and `mcp-server.ts` into `core.ts`, and from there into `git.ts`, `validation.ts`, and `report.ts`.
 
-I prioritized contract and reliability bugs over new features because the README says production use exposes weaknesses in correctness and reliability, and because a broken MCP contract or a crashing validation path would undermine both advertised interfaces before any feature work mattered.
+I focused on bugs and broken contracts first. The README says the happy path works but real use breaks down. If MCP or validation is wrong, neither interface is trustworthy, so I did not want to add features on top of that.
 
-The first issues I found:
+First problems I found:
 
-- MCP schema exposes `repo_path` but the handler read `input.repoPath`.
-- Validation failures rejected the promise and crashed the whole review instead of using the existing `status: "failed"` type.
-- Git diff defaulted to `main`, which fails on repos whose default branch is something else.
+- MCP schema says `repo_path` but the handler read `input.repoPath`.
+- Failed validation commands threw and killed the whole review. The types already had `status: "failed"` but nothing used it.
+- Git diff always used `main` as the base branch.
+
+After those fixes, I looked at the CLI again. `--format json` was accepted but ignored. The report always went to `review-report.md`. Failed validations did not change the exit code. Those matter for CI and for the CLI doing what it claims.
 
 ## What did you choose to implement or fix?
 
-- **MCP contract** — map `repo_path` to `repositoryPath`; extract `toReviewRequest` in `src/mcp.ts` for a testable adapter.
-- **Validation reliability** — resolve failed commands with `{ status: "failed", output }` instead of throwing; show pass/fail in the report.
-- **Git default base ref** — detect `origin/HEAD`, fall back to `main` / `master`, error clearly if none found.
-- **Tests** — cover validation failure paths and MCP input mapping.
-- **Workflow** — added a Cursor rule for commit-sized chunks and conventional commits.
+Reliability fixes:
+
+- Fixed MCP input mapping (`repo_path` -> `repositoryPath`). Pulled `toReviewRequest` into `src/mcp.ts` so it is easy to test.
+- Validation failures now return `{ status: "failed", output }` instead of throwing. The report shows pass/fail.
+- Default git base ref comes from `origin/HEAD`, with fallback to `main` or `master`.
+- Check up front that the repo path exists and is a git repo.
+
+CLI polish:
+
+- Exit code 1 when validation fails, 0 when it passes. The report still gets written either way.
+- `--format json` works end to end. Default output file is `review-report.json`.
+- Added `--output` for a custom report path. Moved arg parsing to `cli-args.ts` for tests.
+
+Tests:
+
+- Unit tests for validation, MCP mapping, git base ref, CLI args, and report output.
+- One integration test for `reviewRepository` with mocked git and validation.
+- CLI e2e tests that run the real process and check exit codes.
+- 34 tests total across 10 files.
+
+Also added a Cursor rule for small commits and conventional commit messages.
 
 ## What did you intentionally not do?
 
-- **`--format json`** — CLI parses it but core/report only emit markdown.
-- **`--output` flag** — report path is still hardcoded to `review-report.md`.
-- **Shell injection hardening** — validation still uses `exec` with user-supplied strings.
-- **Diff-scoped validation** — validation commands still run against the whole repo, not just changed files.
-- **Richer git status handling** — renames/copies and untracked files are not surfaced.
-- **CLI exit code on failed validation** — review completes with exit 0 even when a validation fails.
+- Hardening validation command execution. Still uses `exec` with user-provided strings.
+- Running validation only on changed files. Commands still run against the whole repo.
+- Better git status handling for renames, copies, and untracked files.
+- MCP does not expose exit codes. The agent only gets report text back.
+- No limit on validation output size for MCP (big test logs could fill context).
+- Tests assume Unix shell commands like `false` and `echo`.
 
 ## Interface decision
 
-- **Decision:** hybrid (CLI-primary)
-- **Primary user and execution environment:** developers and CI use the CLI locally or in pipelines; AI coding agents invoke the same review via MCP stdio inside an IDE or agent host.
-- **Trust boundary and allowed capabilities:** caller supplies a repository path and optional shell commands to run in that repo. The tool reads git state and executes those commands with the repo as cwd. It does not sandbox commands or authenticate repos beyond what the host OS already allows.
-- **Reliability, discoverability, latency/context, and output tradeoffs:** CLI is better for scripting, explicit flags, and writing artifacts to disk. MCP is better for agent discoverability and returning report text inline, but large validation output can consume context. Both share `reviewRepository`, so behavior stays aligned; MCP adds a thin typed adapter (`toReviewRequest`).
-- **How supported interfaces remain consistent:** one orchestration function (`reviewRepository`) and one markdown formatter; CLI and MCP differ only in argument parsing and transport.
-- **Evidence that would change this decision:** if most usage were unattended agent workflows with no local checkout, I would lean MCP-first and add streaming/partial results. If CI were the only consumer, I would drop MCP from the advertised surface and focus on exit codes, `--output`, and JSON.
+- Decision: hybrid, CLI-primary
+- Primary user: developers and CI on the CLI; AI agents on MCP stdio.
+- Trust boundary: the caller picks a repo path and optional shell commands. The tool reads git state and runs those commands in the repo. No sandboxing beyond what the OS already gives you.
+- Tradeoffs: CLI is better for scripts, exit codes, file output, and JSON. MCP is easier for agents to discover and call, but long validation output goes straight into context. Both call the same `reviewRepository` function. The adapters only differ in how they parse input and return output.
+- Consistency: shared core (`reviewRepository`), shared report builders, thin CLI and MCP wrappers. CLI adds exit codes and `--output`. MCP returns markdown text.
+- What would change my mind: if agents were the main user, I would push harder on MCP (streaming, truncation, structured results). If CI were the only user, I would focus on JSON and exit codes and care less about MCP.
 
 ## How did you use an AI coding agent?
 
-I used Cursor throughout: strategizing scope, identifying bugs from the starter code, implementing fixes in commit-sized chunks, running verification commands, and drafting this write-up. I treated AI output as a draft — I reviewed diffs, rejected bundled changes, and verified behavior with tests and manual CLI runs before committing.
+I used Cursor for planning, finding bugs, writing code in small commits, running checks, and drafting this doc. I did not commit blindly. I read diffs, split big changes apart, and ran tests plus manual CLI checks before committing.
 
 ## Where did you check, correct, or reject an AI suggestion? (required)
 
-- **Rejected bundled implementation** — the agent initially changed MCP, validation, git, and report in one pass. I split that into separate fix commits so each commit stayed reviewable and matched conventional-commit scope.
-- **Rejected over-focusing on co-author trailers** — I briefly spent time stripping `Co-authored-by: Cursor` from commits and adding rule text about it. I reverted that approach and kept normal commits; the attribution is harmless and not part of the assessment rubric.
-- **Rejected committing `package-lock.json` noise** — local `npm install` produced unrelated lockfile diffs (optional `libc` metadata). I restored the file instead of committing 30 lines of dependency noise.
+- The agent tried to fix MCP, validation, git, and report in one go. I split that into separate commits instead.
+- It wanted to commit `package-lock.json` changes from a local `npm install`. Those were unrelated so I restored the file.
+- For git tests, `vi.spyOn(execFileSync)` failed in ESM. I extracted `resolveDefaultBaseRef` with an injectable git runner instead of trying to mock subprocess calls.
 
 ## Commands used to verify the result, with outcomes
 
 ```bash
-npm install                          # ok — required before first typecheck
+npm install                          # ok, needed before first typecheck
 npm run typecheck                    # pass
-npm test                             # pass (7 tests after adding validation + MCP tests)
 npm run build                        # pass
+npm test                             # pass, 34 tests
+
 npm run inspector -- review --repo . --validate "false"
-                                     # pass — exit 0, report shows `false (failed)`
+                                     # exit 1, report shows false (failed)
 npm run inspector -- review --repo . --validate "npm test"
-                                     # pass — report shows `npm test (passed)`
+                                     # exit 0, report shows npm test (passed)
 npm run inspector -- review --repo . --validate "false" --validate "npm test"
-                                     # pass — both results appear; batch does not abort early
-git stash + inspector --validate "false" (without validation fix)
-                                     # baseline reproduced crash with exit 1
-git restore package-lock.json        # discarded unrelated local lockfile diff
+                                     # both results show up, no early abort
+
+npm run inspector -- review --repo . --format json --validate "npm test"
+                                     # valid review-report.json
+npm run inspector -- review --repo . --output /tmp/inspector-report.md
+                                     # writes to custom path
+
+npm run inspector -- review --repo /no/such/repo
+                                     # exit 1, path does not exist
+npm run inspector -- review --repo /tmp
+                                     # exit 1, not a git repo
+
+git stash + inspector --validate "false"   # reproduced original crash
 ```
 
 ## A blocker you hit and how you approached it
 
-The first `npm run typecheck` failed because dependencies were not installed (`node_modules` missing). I ran `npm install` and re-ran checks before treating any fix as verified.
+`npm run typecheck` failed at first because `node_modules` was missing. Ran `npm install` and tried again.
 
-A few commit attempts were interrupted in the IDE approval flow. I kept commits narrowly scoped (one file group at a time) so partial progress was easy to review and retry.
+A couple commits got interrupted in the IDE. Keeping each commit small made it easy to retry without losing work.
+
+Git unit tests blocked on ESM: could not spy on `execFileSync`. Refactored to inject a git runner function so the logic is testable without mocks on node builtins.
 
 ## Known limitations and the next three things you would do
 
-**Known limitations**
+Known limitations:
 
-- Validation commands are arbitrary shell strings run with `exec`.
-- Failed validations do not change CLI exit code.
-- Report format is markdown only despite CLI `--format` flag.
-- Changed-file detection depends on a resolvable base ref and simple git status codes.
+- Validation uses `exec` with arbitrary shell strings.
+- Validation is not limited to changed files.
+- Git diff parsing is basic (no rename/copy/untracked).
+- MCP only returns text, no separate failure signal or output cap.
 
-**Next three**
+Next three:
 
-1. Implement `--format json` end-to-end (or remove the flag until supported).
-2. Replace `exec` with safer argument-aware execution and/or restrict MCP Exposed commands.
-3. Set CLI exit code from validation results and add an `--output` path flag for CI usage.
+1. Safer command execution (`execFile` or an allowlist for MCP).
+2. Truncate or summarize validation output for MCP.
+3. Tests and support for rename/copy/untracked in `changedFiles`.
 
 ## Approximate focused-work time
 
 - Start: Jul 30, 2026 ~2:53 PM
-- Finish: Jul 30, 2026 ~3:25 PM
+- Finish: Jul 30, 2026 ~3:45 PM
